@@ -4,12 +4,16 @@
 
 import java.net.*;
 import java.io.*;
+import java.util.*;
 
 class subServer implements Runnable {
     Socket client;
+    int client_id;
 
-    subServer(Socket client) {
-        this.client = client;
+    subServer(Socket client_sock, int id) {
+
+        client = client_sock;
+        client_id = id;
     }
 
     private void clientHandler() throws Exception {
@@ -17,7 +21,7 @@ class subServer implements Runnable {
         InputStreamReader input = new InputStreamReader(client.getInputStream());
         BufferedReader inputReader = new BufferedReader(input);
         PrintStream outputStream = new PrintStream(client.getOutputStream());
-        outputStream.println("Connection established");
+        outputStream.println("Welcome, your user ID is " + client_id);
         int count = 0;
         String msg = "";
 
@@ -27,30 +31,41 @@ class subServer implements Runnable {
                     msg = inputReader.readLine();
                     if (msg.equals("END")) {
                         outputStream.println("End communication");
-                        System.out.println("Client has left");
-                        System.exit(-1);
+                        System.out.println("Client " + client_id + " has left");
+                        finalize();
+                        return;                  //System.exit(-1);
                     } else {
-                        System.out.println("Client: " + msg);
+                        System.out.println(client_id + ": " + msg);
                         count++;
                         outputStream.println(count + ": " + msg);
                     }
                 } catch (NullPointerException e) {
-                    continue;
+                   // continue; //ignore this exception
+                    //System.out.println("Null encountered");
+                    System.out.println("Client " + client_id + " has left");
+                    finalize();
+                    return;
+                    //drop client here
                 }
 
             }
         } catch (IOException e) {
             System.out.println("Could not read from client");
+            return;
         }
     }
 
     public void run() {
         try {
             clientHandler();
+
         } catch (Exception e) {
             System.out.println("Connection ended");
+            return;
         }
     }
+
+
 
     protected void finalize(){
         //Objects created in run method are finalized when
@@ -71,57 +86,24 @@ class subServer implements Runnable {
 public class Server {
     ServerSocket server;
 
-    private void clientHandler(ServerSocket server_sock) throws Exception {
-
-        Socket sock = server_sock.accept();
-        InputStreamReader input = new InputStreamReader(sock.getInputStream());
-        BufferedReader inputReader = new BufferedReader(input);
-        PrintStream outputStream = new PrintStream(sock.getOutputStream());
-        outputStream.println("Communication established");
-        int count = 0;
-        String msg = "";
-        try {
-            while (!msg.equals("END")) {
-                msg = inputReader.readLine();
-                if (msg.equals("END")) {
-                    outputStream.println("End communication");
-                } else {
-                    System.out.println("Client: " + msg);
-                    count++;
-                    outputStream.println(count + ": " + msg);
-                }
-            }
-        } catch (NullPointerException e) {
-            System.out.println("NULL entered");
-            System.exit(-1);
-        }
-    }
-
-
-        protected void finalize(){
-    //Objects created in run method are finalized when
-    //program terminates and thread exits
-        try{
-            server.close();
-            System.out.println("Connection closed successfully");
-        } catch (IOException e) {
-            System.out.println("Could not close socket");
-            System.exit(-1);
-        }
-    }
-
     private void run() throws Exception {
 
         server = new ServerSocket(48766);
-        try {
-            while (true) {
-                subServer client = new subServer(server.accept());
+        Random rand = new Random();
+        int client_id = 0;
+
+        while (true) {
+            try {
+                Socket client_socket = server.accept();
+                client_id = rand.nextInt(10000);
+                subServer client = new subServer(client_socket, client_id);
                 Thread connection = new Thread(client);
                 connection.start();
+                System.out.println("Client " + client_id + " has joined the server!");
+            } catch (IOException e) {
+                System.out.println("Could not accept socket connection");
+                continue;   //System.exit(-1);
             }
-        } catch (IOException e) {
-            System.out.println("Could not accept socket connection");
-            System.exit(-1);
         }
     }
 
